@@ -8,7 +8,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const {prompt, code} = req.body;
+  const {errorMessage, code} = req.body;
   const parser = new CodeOutputParser();
   const chat = new ChatOpenAI();
 
@@ -28,7 +28,7 @@ export default async function handler(
       )}`,
     ),
     new HumanChatMessage(
-      `${parser.getFormatInstructions()} I want to enhance the following code file: \n\`\`\`js${code}\`\`\`\n\nThe command to update the code is as follows: "${prompt}".`,
+      `${parser.getFormatInstructions()} I want to fix the following code file: \n\`\`\`js${code}\`\`\`\n\nI am getting the following error: "${errorMessage}".`,
     ),
   ]);
 

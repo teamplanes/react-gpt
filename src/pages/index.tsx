@@ -57,6 +57,33 @@ function Page() {
     }
     setIsLoading(false);
   };
+
+  const handleFix = async (errorMessage: string) => {
+    setIsLoading(true);
+    try {
+      const {code} = sandpack.files['/App.js'];
+      const result = await fetch('/api/fix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({code, error: errorMessage}),
+      });
+
+      const data = await result.json();
+      sandpack.updateFile('/App.js', data.code);
+    } catch (error) {
+      toast({
+        title: 'An error occurred.',
+        description: (error as Error).message,
+        status: 'error',
+        duration: 9000,
+        isClosable: true,
+      });
+    }
+    setIsLoading(false);
+  };
+
   return (
     <Box h="100vh" bg="black">
       <Container
@@ -83,16 +110,35 @@ function Page() {
             required
             placeholder="Enter your prompt..."
             my={2}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && e.metaKey) {
-                e.preventDefault();
-                formRef.current?.requestSubmit();
-              }
-            }}
           />
-          <Button size="lg" type="submit" isLoading={isLoading}>
-            Generate (Cmd + Enter)
-          </Button>
+          <Flex direction="row" justify="space-between">
+            <Button size="lg" type="submit" isLoading={isLoading}>
+              Generate
+            </Button>
+
+            {sandpack?.error?.message && !isLoading && (
+              <Button
+                size="lg"
+                colorScheme="red"
+                type="button"
+                onClick={() => {
+                  if (sandpack?.error?.message) {
+                    handleFix(sandpack?.error?.message);
+                  } else {
+                    toast({
+                      title: 'An error occurred.',
+                      description: 'No error message found.',
+                      status: 'error',
+                      duration: 9000,
+                      isClosable: true,
+                    });
+                  }
+                }}
+              >
+                Try to Fix
+              </Button>
+            )}
+          </Flex>
         </form>
       </Container>
       {sandpack.status !== 'running' && (
