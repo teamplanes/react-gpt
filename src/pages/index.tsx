@@ -144,6 +144,7 @@ export default function Home() {
             '@emotion/react': 'latest',
             '@emotion/styled': 'latest',
             'framer-motion': 'latest',
+            'react-icons': 'latest',
           },
         }}
         files={{

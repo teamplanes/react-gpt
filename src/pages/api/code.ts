@@ -17,6 +17,7 @@ export default async function handler(
     '@emotion/react',
     '@emotion/styled',
     'framer-motion',
+    'react-icons',
   ];
 
   const response = await chat.call([
