@@ -1,9 +1,11 @@
+/* eslint-disable no-await-in-loop */
 import Head from 'next/head';
 import {
   SandpackLayout,
   SandpackPreview,
   SandpackProvider,
   useSandpack,
+  useSandpackClient,
 } from '@codesandbox/sandpack-react';
 import {useEffect, useRef, useState} from 'react';
 import {
@@ -12,18 +14,38 @@ import {
   Center,
   Container,
   Flex,
+  SkeletonText,
   Spinner,
+  Stack,
+  Tag,
   Text,
   Textarea,
   useToast,
 } from '@chakra-ui/react';
+import {initialCodebaseState} from '@/lib/codebase/initial-codebase-state';
+
+// eslint-disable-next-line no-shadow
+enum CommentaryType {
+  QUESTION = 'QUESTION',
+  ACTION = 'ACTION',
+  THOUGHT = 'THOUGHT',
+}
+
+interface CommentaryMessage {
+  id: string;
+  type: CommentaryType;
+  body: string;
+}
 
 function Page() {
   const {sandpack} = useSandpack();
+  const sp = useSandpackClient();
+  console.log('🚀 ~ file: index.tsx:43 ~ Page ~ sp:', sp);
 
   const toast = useToast();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const [commentary, setCommentary] = useState<CommentaryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
@@ -42,8 +64,54 @@ function Page() {
         body: JSON.stringify({prompt, code}),
       });
 
-      const data = await result.json();
-      sandpack.updateFile('/App.js', data.code);
+      const reader = result.body?.getReader();
+      if (!reader) {
+        throw new Error('Something went wrong.');
+      }
+
+      let done;
+      let value: Uint8Array | undefined;
+      while (!done) {
+        ({value, done} = await reader.read());
+        if (done) {
+          break;
+        }
+        const textValue = new TextDecoder().decode(value);
+
+        if (textValue === 'START') {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+
+        if (textValue === 'ERROR') {
+          throw new Error('Something went wrong.');
+        }
+
+        if (
+          Object.values(CommentaryType).some((t) => textValue.startsWith(t))
+        ) {
+          setCommentary((prev) => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              type: (textValue.split(' ')?.[0] || textValue) as CommentaryType,
+              body: textValue.split(' ')?.slice(1)?.join(' ') || '',
+            },
+          ]);
+        } else {
+          setCommentary((prev) => {
+            const newCommentary = [...prev];
+            const lastCommentary = newCommentary.pop() as CommentaryMessage;
+            return [
+              ...newCommentary,
+              {
+                ...lastCommentary,
+                body: (lastCommentary?.body || '') + textValue,
+              },
+            ];
+          });
+        }
+      }
       if (inputRef.current?.value) inputRef.current.value = '';
       inputRef.current?.focus();
     } catch (error) {
@@ -71,7 +139,7 @@ function Page() {
       });
 
       const data = await result.json();
-      sandpack.updateFile('/App.js', data.code);
+      // sandpack.updateFile('/App.js', data.code);
     } catch (error) {
       toast({
         title: 'An error occurred.',
@@ -89,57 +157,96 @@ function Page() {
       <Container
         maxW="container.xl"
         h="100vh"
-        py={4}
         display="flex"
+        position="relative"
         flexDirection="column"
+        maxH="100vh"
+        p={8}
       >
-        <Flex flex={1}>
-          <SandpackLayout style={{height: '100%', width: '100%'}}>
-            <SandpackPreview
-              style={{
-                height: '100%',
-              }}
-            />
-          </SandpackLayout>
-        </Flex>
-        <form ref={formRef} onSubmit={handleSubmit}>
-          <Textarea
-            bg="white"
-            ref={inputRef}
-            name="prompt"
-            required
-            placeholder="Enter your prompt..."
-            my={2}
-          />
-          <Flex direction="row" justify="space-between">
-            <Button size="lg" type="submit" isLoading={isLoading}>
-              Generate
-            </Button>
-
-            {sandpack?.error?.message && !isLoading && (
-              <Button
-                size="lg"
-                colorScheme="red"
-                type="button"
-                onClick={() => {
-                  if (sandpack?.error?.message) {
-                    handleFix(sandpack?.error?.message);
-                  } else {
-                    toast({
-                      title: 'An error occurred.',
-                      description: 'No error message found.',
-                      status: 'error',
-                      duration: 9000,
-                      isClosable: true,
-                    });
-                  }
+        <Flex flex={1} h="100%" position="relative">
+          <Flex flex={1} direction="column">
+            <SandpackLayout style={{height: '100%', width: '100%'}}>
+              <SandpackPreview
+                style={{
+                  height: '100%',
                 }}
-              >
-                Try to Fix
-              </Button>
-            )}
+              />
+            </SandpackLayout>
+            <form ref={formRef} onSubmit={handleSubmit}>
+              <Textarea
+                bg="white"
+                ref={inputRef}
+                name="prompt"
+                required
+                defaultValue="create a profile view for a user, the view should have 2 Tabs, one tab should have the basic user info like first name and last name, and the second should have a password reset form"
+                placeholder="Enter your prompt..."
+                my={2}
+              />
+              <Flex direction="row" justify="space-between">
+                <Button size="lg" type="submit" isLoading={isLoading}>
+                  Generate
+                </Button>
+
+                {sandpack?.error?.message && !isLoading && (
+                  <Button
+                    size="lg"
+                    colorScheme="red"
+                    type="button"
+                    onClick={() => {
+                      if (sandpack?.error?.message) {
+                        handleFix(sandpack?.error?.message);
+                      } else {
+                        toast({
+                          title: 'An error occurred.',
+                          description: 'No error message found.',
+                          status: 'error',
+                          duration: 9000,
+                          isClosable: true,
+                        });
+                      }
+                    }}
+                  >
+                    Try to Fix
+                  </Button>
+                )}
+              </Flex>
+            </form>
           </Flex>
-        </form>
+          <Stack
+            width="30%"
+            direction="column"
+            overflowY="scroll"
+            maxH="100%"
+            px={4}
+          >
+            {commentary.map((item) => {
+              return (
+                <Box key={item.id} bg="white" p={3} borderRadius="md" w="100%">
+                  {item.type === CommentaryType.ACTION && !item.body ? (
+                    <SkeletonText noOfLines={1} />
+                  ) : (
+                    <Text fontSize="lg">{item.body}</Text>
+                  )}
+                  {item.type ? (
+                    <Tag
+                      colorScheme={(() => {
+                        if (item.type === CommentaryType.ACTION) return 'blue';
+                        if (item.type === CommentaryType.QUESTION)
+                          return 'green';
+                        if (item.type === CommentaryType.THOUGHT)
+                          return 'yellow';
+                        return 'gray';
+                      })()}
+                      mt={2}
+                    >
+                      {item.type.toLowerCase()}
+                    </Tag>
+                  ) : null}
+                </Box>
+              );
+            })}
+          </Stack>
+        </Flex>
       </Container>
       {sandpack.status !== 'running' && (
         <Center
@@ -165,9 +272,17 @@ function Page() {
 
 export default function Home() {
   const [shouldRender, setShouldRender] = useState(false);
+  const [sh, setSh] = useState(false);
 
   useEffect(() => {
     setShouldRender(true);
+  }, []);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setSh(true);
+      console.log('sh', sh);
+    }, 10000);
   }, []);
 
   if (!shouldRender) {
@@ -186,11 +301,7 @@ export default function Home() {
         template="react"
         customSetup={{
           dependencies: {
-            '@chakra-ui/react': 'latest',
-            '@emotion/react': 'latest',
-            '@emotion/styled': 'latest',
-            'framer-motion': 'latest',
-            'react-icons': 'latest',
+            ...initialCodebaseState.dependencies,
           },
         }}
         files={{
