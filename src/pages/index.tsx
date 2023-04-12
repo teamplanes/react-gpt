@@ -3,147 +3,90 @@ import Head from 'next/head';
 import {
   SandpackLayout,
   SandpackPreview,
+  SandpackPreviewRef,
   SandpackProvider,
   useSandpack,
-  useSandpackClient,
 } from '@codesandbox/sandpack-react';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Box,
-  Button,
   Center,
   Container,
   Flex,
-  SkeletonText,
   Spinner,
   Stack,
-  Tag,
   Text,
-  Textarea,
   useToast,
 } from '@chakra-ui/react';
-import {initialCodebaseState} from '@/lib/codebase/initial-codebase-state';
-
-// eslint-disable-next-line no-shadow
-enum CommentaryType {
-  QUESTION = 'QUESTION',
-  ACTION = 'ACTION',
-  THOUGHT = 'THOUGHT',
-}
-
-interface CommentaryMessage {
-  id: string;
-  type: CommentaryType;
-  body: string;
-}
+import {PromptForm} from '@/components/instruction-form';
+import {OpenAIChat} from 'langchain/llms/openai';
+import {CallbackManager} from 'langchain/callbacks';
+import type {SandpackClient} from '@codesandbox/sandpack-client';
+import {SandpackToolset} from '@/lib/sandpack-toolset';
+import {
+  executeSandpackAgent,
+  executeSandpackFixerAgent,
+} from '@/lib/sandpack-agent';
+import {initialCodebaseState} from '@/lib/initial-codebase-state';
+import ReactMarkdown from 'react-markdown';
 
 function Page() {
   const {sandpack} = useSandpack();
-  const sp = useSandpackClient();
-  console.log('🚀 ~ file: index.tsx:43 ~ Page ~ sp:', sp);
-
   const toast = useToast();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [commentary, setCommentary] = useState<CommentaryMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const [thoughtProcess, setThoughtProcess] = useState<string>('');
+  const previewRef = useRef<SandpackPreviewRef>(null);
+  const sandpackToolset = useRef<SandpackToolset | null>(null);
 
-    try {
-      const {code} = sandpack.files['/App.js'];
-      const formData = new FormData(e.currentTarget);
-      const prompt = formData.get('prompt');
+  useEffect(() => {
+    const client = previewRef.current?.getClient();
 
-      const result = await fetch('/api/code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({prompt, code}),
-      });
-
-      const reader = result.body?.getReader();
-      if (!reader) {
-        throw new Error('Something went wrong.');
-      }
-
-      let done;
-      let value: Uint8Array | undefined;
-      while (!done) {
-        ({value, done} = await reader.read());
-        if (done) {
-          break;
-        }
-        const textValue = new TextDecoder().decode(value);
-
-        if (textValue === 'START') {
-          // eslint-disable-next-line no-continue
-          continue;
-        }
-
-        if (textValue === 'ERROR') {
-          throw new Error('Something went wrong.');
-        }
-
-        if (
-          Object.values(CommentaryType).some((t) => textValue.startsWith(t))
-        ) {
-          setCommentary((prev) => [
-            ...prev,
-            {
-              id: Math.random().toString(),
-              type: (textValue.split(' ')?.[0] || textValue) as CommentaryType,
-              body: textValue.split(' ')?.slice(1)?.join(' ') || '',
-            },
-          ]);
-        } else {
-          setCommentary((prev) => {
-            const newCommentary = [...prev];
-            const lastCommentary = newCommentary.pop() as CommentaryMessage;
-            return [
-              ...newCommentary,
-              {
-                ...lastCommentary,
-                body: (lastCommentary?.body || '') + textValue,
-              },
-            ];
-          });
-        }
-      }
-      if (inputRef.current?.value) inputRef.current.value = '';
-      inputRef.current?.focus();
-    } catch (error) {
-      toast({
-        title: 'An error occurred.',
-        description: (error as Error).message,
-        status: 'error',
-        duration: 9000,
-        isClosable: true,
-      });
+    if (client && !sandpackToolset.current) {
+      sandpackToolset.current = new SandpackToolset(client);
     }
-    setIsLoading(false);
-  };
+    /**
+     * NOTE: In order to make sure that the client will be available
+     * use the whole `sandpack` object as a dependency.
+     */
+  }, [sandpack]);
 
-  const handleFix = async (errorMessage: string) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [instruction, setInstruction] = useState('');
+
+  const handleSubmit = async (errorFix?: boolean) => {
     setIsLoading(true);
     try {
-      const {code} = sandpack.files['/App.js'];
-      const result = await fetch('/api/fix', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({code, error: errorMessage}),
-      });
+      if (!sandpackToolset.current) {
+        throw new Error('Sandpack toolset not initialized');
+      }
+      setThoughtProcess('');
+      if (errorFix) {
+        if (!sandpack.error) {
+          throw new Error('No error to fix');
+        }
 
-      const data = await result.json();
-      // sandpack.updateFile('/App.js', data.code);
+        await executeSandpackFixerAgent(
+          sandpack.error,
+          sandpackToolset.current,
+          {
+            onNewToken: (token) => {
+              setThoughtProcess((prev) => `${prev}${token}`);
+            },
+          },
+        );
+      } else {
+        await executeSandpackAgent(instruction, sandpackToolset.current, {
+          onNewToken: (token) => {
+            setThoughtProcess((prev) => `${prev}${token}`);
+          },
+        });
+      }
     } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(error);
       toast({
         title: 'An error occurred.',
-        description: (error as Error).message,
+        description:
+          'Something went wrong, please check your instruction and try again.',
         status: 'error',
         duration: 9000,
         isClosable: true,
@@ -164,88 +107,41 @@ function Page() {
         p={8}
       >
         <Flex flex={1} h="100%" position="relative">
-          <Flex flex={1} direction="column">
-            <SandpackLayout style={{height: '100%', width: '100%'}}>
-              <SandpackPreview
-                style={{
-                  height: '100%',
-                }}
-              />
-            </SandpackLayout>
-            <form ref={formRef} onSubmit={handleSubmit}>
-              <Textarea
-                bg="white"
-                ref={inputRef}
-                name="prompt"
-                required
-                defaultValue="create a profile view for a user, the view should have 2 Tabs, one tab should have the basic user info like first name and last name, and the second should have a password reset form"
-                placeholder="Enter your prompt..."
-                my={2}
-              />
-              <Flex direction="row" justify="space-between">
-                <Button size="lg" type="submit" isLoading={isLoading}>
-                  Generate
-                </Button>
-
-                {sandpack?.error?.message && !isLoading && (
-                  <Button
-                    size="lg"
-                    colorScheme="red"
-                    type="button"
-                    onClick={() => {
-                      if (sandpack?.error?.message) {
-                        handleFix(sandpack?.error?.message);
-                      } else {
-                        toast({
-                          title: 'An error occurred.',
-                          description: 'No error message found.',
-                          status: 'error',
-                          duration: 9000,
-                          isClosable: true,
-                        });
-                      }
-                    }}
-                  >
-                    Try to Fix
-                  </Button>
-                )}
-              </Flex>
-            </form>
+          <Flex flex={1} direction="column" position="relative">
+            <Stack spacing={4} direction="row" h="100%" position="relative">
+              <SandpackLayout style={{height: '100%', width: '100%'}}>
+                <SandpackPreview
+                  ref={previewRef}
+                  style={{
+                    height: '100%',
+                  }}
+                />
+              </SandpackLayout>
+              <Box
+                color="white"
+                w="300px"
+                bg="gray.900"
+                h="100%"
+                p={4}
+                fontFamily="mono"
+                borderRadius="md"
+                overflowY="scroll"
+              >
+                <Text fontSize="sm" color="white">
+                  {/* <ReactMarkdown>{thoughtProcess || '...'}</ReactMarkdown> */}
+                </Text>
+              </Box>
+            </Stack>
+            <PromptForm
+              isLoading={isLoading}
+              onChange={(newInstruction) => setInstruction(newInstruction)}
+              onSubmit={() => handleSubmit()}
+              instruction={instruction}
+              // TODO
+              onFix={() => handleSubmit(true)}
+              errorMessage={sandpack.error?.message || ''}
+            />
           </Flex>
-          <Stack
-            width="30%"
-            direction="column"
-            overflowY="scroll"
-            maxH="100%"
-            px={4}
-          >
-            {commentary.map((item) => {
-              return (
-                <Box key={item.id} bg="white" p={3} borderRadius="md" w="100%">
-                  {item.type === CommentaryType.ACTION && !item.body ? (
-                    <SkeletonText noOfLines={1} />
-                  ) : (
-                    <Text fontSize="lg">{item.body}</Text>
-                  )}
-                  {item.type ? (
-                    <Tag
-                      colorScheme={(() => {
-                        if (item.type === CommentaryType.ACTION) return 'blue';
-                        if (item.type === CommentaryType.QUESTION)
-                          return 'green';
-                        if (item.type === CommentaryType.THOUGHT)
-                          return 'yellow';
-                        return 'gray';
-                      })()}
-                      mt={2}
-                    >
-                      {item.type.toLowerCase()}
-                    </Tag>
-                  ) : null}
-                </Box>
-              );
-            })}
-          </Stack>
         </Flex>
       </Container>
       {sandpack.status !== 'running' && (
@@ -271,28 +167,10 @@ function Page() {
 }
 
 export default function Home() {
-  const [shouldRender, setShouldRender] = useState(false);
-  const [sh, setSh] = useState(false);
-
-  useEffect(() => {
-    setShouldRender(true);
-  }, []);
-
-  useEffect(() => {
-    setTimeout(() => {
-      setSh(true);
-      console.log('sh', sh);
-    }, 10000);
-  }, []);
-
-  if (!shouldRender) {
-    return null;
-  }
-
   return (
     <>
       <Head>
-        <title>Create Next App</title>
+        <title>ReactGPT</title>
         <meta name="description" content="Generated by create next app" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -304,44 +182,7 @@ export default function Home() {
             ...initialCodebaseState.dependencies,
           },
         }}
-        files={{
-          '/App.js': {
-            active: true,
-            code: /* js */ `
-      import React from 'react';
-
-
-      export default function App() {
-        return (
-          // Code goes here!
-          null
-        );
-      }
-   `,
-          },
-
-          '/index.js': {
-            active: false,
-            hidden: true,
-            code: /* js */ `
-      import {ChakraProvider} from '@chakra-ui/react';
-      import React, { StrictMode } from "react";
-      import { createRoot } from "react-dom/client";
-      import "./styles.css";
-
-      import App from "./App";
-
-      const root = createRoot(document.getElementById("root"));
-      root.render(
-        <StrictMode>
-          <ChakraProvider>
-            <App />
-          </ChakraProvider>
-        </StrictMode>
-      );
-    `,
-          },
-        }}
+        files={initialCodebaseState.files}
       >
         <Page />
       </SandpackProvider>

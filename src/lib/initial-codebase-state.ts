@@ -1,4 +1,4 @@
-import {CodebaseState} from './types';
+import {SandpackFiles} from '@codesandbox/sandpack-react';
 
 const AppJs = /* js */ `import React from 'react';
 
@@ -13,7 +13,7 @@ const IndexJs = /* js */ `import {ChakraProvider} from '@chakra-ui/react';
   import React, { StrictMode } from "react";
   import { createRoot } from "react-dom/client";
 
-  import App from "./src/App";
+  import App from "./App";
 
   const root = createRoot(document.getElementById("root"));
   root.render(
@@ -25,25 +25,22 @@ const IndexJs = /* js */ `import {ChakraProvider} from '@chakra-ui/react';
   );
   `;
 
-export const initialCodebaseState: CodebaseState = {
-  files: [
-    {
-      editor: {
-        isActive: true,
-        isHidden: false,
-      },
-      path: '/src/App.js',
+export const initialCodebaseState: {
+  files: SandpackFiles;
+  dependencies: Record<string, string>;
+} = {
+  files: {
+    '/App.js': {
+      active: true,
+      hidden: false,
       code: AppJs,
     },
-    {
-      editor: {
-        isActive: false,
-        isHidden: true,
-      },
-      path: '/index.js',
+    '/index.js': {
+      active: false,
+      hidden: true,
       code: IndexJs,
     },
-  ],
+  },
   dependencies: {
     '@chakra-ui/react': 'latest',
     '@emotion/react': 'latest',

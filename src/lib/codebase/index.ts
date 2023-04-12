@@ -1,4 +1,4 @@
-import {initialCodebaseState} from './initial-codebase-state';
+import {initialCodebaseState} from '../initial-codebase-state';
 import {CodebaseState} from './types';
 
 export class Codebase {
