@@ -1,4 +1,4 @@
-import {SandpackFiles} from '@codesandbox/sandpack-react';
+import {SandpackFile} from '@codesandbox/sandpack-react';
 
 const AppJs = /* js */ `import React from 'react';
 
@@ -26,7 +26,7 @@ const IndexJs = /* js */ `import {ChakraProvider} from '@chakra-ui/react';
   `;
 
 export const initialCodebaseState: {
-  files: SandpackFiles;
+  files: Record<string, SandpackFile>;
   dependencies: Record<string, string>;
 } = {
   files: {

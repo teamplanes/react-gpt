@@ -7,7 +7,7 @@ import {
   SandpackProvider,
   useSandpack,
 } from '@codesandbox/sandpack-react';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useRef, useState} from 'react';
 import {
   Box,
   Center,
@@ -19,35 +19,24 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import {PromptForm} from '@/components/instruction-form';
-import {OpenAIChat} from 'langchain/llms/openai';
-import {CallbackManager} from 'langchain/callbacks';
-import type {SandpackClient} from '@codesandbox/sandpack-client';
-import {SandpackToolset} from '@/lib/sandpack-toolset';
+import {
+  useSandpackToolset,
+  SandpackToolsetOptions,
+} from '@/lib/sandpack-toolset';
 import {
   executeSandpackAgent,
   executeSandpackFixerAgent,
 } from '@/lib/sandpack-agent';
 import {initialCodebaseState} from '@/lib/initial-codebase-state';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-function Page() {
-  const {sandpack} = useSandpack();
+function Page(props: SandpackToolsetOptions) {
   const toast = useToast();
+  const {sandpack} = useSandpack();
   const [thoughtProcess, setThoughtProcess] = useState<string>('');
   const previewRef = useRef<SandpackPreviewRef>(null);
-  const sandpackToolset = useRef<SandpackToolset | null>(null);
-
-  useEffect(() => {
-    const client = previewRef.current?.getClient();
-
-    if (client && !sandpackToolset.current) {
-      sandpackToolset.current = new SandpackToolset(client);
-    }
-    /**
-     * NOTE: In order to make sure that the client will be available
-     * use the whole `sandpack` object as a dependency.
-     */
-  }, [sandpack]);
+  const sandpackToolset = useSandpackToolset(props);
 
   const [isLoading, setIsLoading] = useState(false);
   const [instruction, setInstruction] = useState('');
@@ -55,26 +44,19 @@ function Page() {
   const handleSubmit = async (errorFix?: boolean) => {
     setIsLoading(true);
     try {
-      if (!sandpackToolset.current) {
-        throw new Error('Sandpack toolset not initialized');
-      }
       setThoughtProcess('');
       if (errorFix) {
         if (!sandpack.error) {
           throw new Error('No error to fix');
         }
 
-        await executeSandpackFixerAgent(
-          sandpack.error,
-          sandpackToolset.current,
-          {
-            onNewToken: (token) => {
-              setThoughtProcess((prev) => `${prev}${token}`);
-            },
+        await executeSandpackFixerAgent(sandpack.error, sandpackToolset, {
+          onNewToken: (token) => {
+            setThoughtProcess((prev) => `${prev}${token}`);
           },
-        );
+        });
       } else {
-        await executeSandpackAgent(instruction, sandpackToolset.current, {
+        await executeSandpackAgent(instruction, sandpackToolset, {
           onNewToken: (token) => {
             setThoughtProcess((prev) => `${prev}${token}`);
           },
@@ -106,32 +88,17 @@ function Page() {
         maxH="100vh"
         p={8}
       >
-        <Flex flex={1} h="100%" position="relative">
+        <Stack spacing={4} direction="row" h="100%" position="relative">
           <Flex flex={1} direction="column" position="relative">
-            <Stack spacing={4} direction="row" h="100%" position="relative">
-              <SandpackLayout style={{height: '100%', width: '100%'}}>
-                <SandpackPreview
-                  ref={previewRef}
-                  style={{
-                    height: '100%',
-                  }}
-                />
-              </SandpackLayout>
-              <Box
-                color="white"
-                w="300px"
-                bg="gray.900"
-                h="100%"
-                p={4}
-                fontFamily="mono"
-                borderRadius="md"
-                overflowY="scroll"
-              >
-                <Text fontSize="sm" color="white">
-                  {/* <ReactMarkdown>{thoughtProcess || '...'}</ReactMarkdown> */}
-                </Text>
-              </Box>
-            </Stack>
+            <SandpackLayout style={{flex: 1, position: 'relative'}}>
+              <SandpackPreview
+                ref={previewRef}
+                style={{
+                  height: '100%',
+                }}
+              />
+            </SandpackLayout>
+
             <PromptForm
               isLoading={isLoading}
               onChange={(newInstruction) => setInstruction(newInstruction)}
@@ -142,7 +109,45 @@ function Page() {
               errorMessage={sandpack.error?.message || ''}
             />
           </Flex>
-        </Flex>
+          <Box
+            color="white"
+            w="300px"
+            bg="gray.900"
+            h="100%"
+            p={4}
+            fontFamily="mono"
+            borderRadius="md"
+            overflowY="scroll"
+          >
+            <Text
+              fontSize="sm"
+              color="white"
+              whiteSpace="pre-wrap"
+              sx={{
+                '& > *': {
+                  overflowAnchor: 'none',
+                },
+              }}
+            >
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                // eslint-disable-next-line react/no-children-prop
+                children={
+                  thoughtProcess
+                    ?.replaceAll(`Action:`, '\n\n---\n**Action:**')
+                    ?.replaceAll(`Question:`, '\n\n---\n**Question:**')
+                    ?.replaceAll(`Thought:`, '\n\n---\n**Thought:**') || '...'
+                }
+              />
+              <Box
+                style={{
+                  overflowAnchor: 'auto',
+                  height: '1px',
+                }}
+              />
+            </Text>
+          </Box>
+        </Stack>
       </Container>
       {sandpack.status !== 'running' && (
         <Center
@@ -167,6 +172,11 @@ function Page() {
 }
 
 export default function Home() {
+  const [files, setFiles] = useState(initialCodebaseState.files);
+  const [dependencies, setDependencies] = useState(
+    initialCodebaseState.dependencies,
+  );
+  console.log({files, dependencies});
   return (
     <>
       <Head>
@@ -178,13 +188,18 @@ export default function Home() {
       <SandpackProvider
         template="react"
         customSetup={{
-          dependencies: {
-            ...initialCodebaseState.dependencies,
-          },
+          dependencies,
         }}
-        files={initialCodebaseState.files}
+        files={files}
       >
-        <Page />
+        <Page
+          files={files}
+          dependencies={dependencies}
+          onUpdateFiles={(newFiles) => setFiles(newFiles)}
+          onUpdateDependencies={(newDependencies) =>
+            setDependencies(newDependencies)
+          }
+        />
       </SandpackProvider>
     </>
   );
