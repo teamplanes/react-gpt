@@ -39,16 +39,22 @@ export const useSandpackToolset = (
     return new DynamicTool({
       name: 'List Available Files',
       description:
-        'call this to get a list of all the files in the project. input should be an empty string.',
+        'call this to get a list of all the files in the project to understand the file structure. input should be an empty string.',
       func: async () => {
         try {
-          return `These are the files available in the project, all paths are relative to the root of the repository:\n${Object.entries(
-            optionsRef.current.files,
-          )
-            .map(([filePath]) => filePath)
-            .join(
-              '\n',
-            )}\nYou can set new content for any of these files, or create a new one if you need.`;
+          const allFiles = Object.entries(optionsRef.current.files).map(
+            ([filePath]) => filePath,
+          );
+          const hasSrcFolder = allFiles.some((filePath) =>
+            filePath.startsWith('/src'),
+          );
+          return `These are the files available in the project, all paths are relative to the root of the repository:\n${allFiles.join(
+            '\n',
+          )}\nYou can set new content for any of these files, or create a new one if you need.${
+            !hasSrcFolder
+              ? `\nNote: the /src folder has not been created yet, however you do not need to create it explicitly.`
+              : ''
+          }`;
         } catch (error) {
           return `Failed to list files: ${error}`;
         }
@@ -62,9 +68,10 @@ export const useSandpackToolset = (
       description:
         'call this to get the contents of a file, useful to if you want to make a change to it. input should be the path to the file.',
       func: async (input) => {
+        const errorPrefix = `Error running Get File Contents by Path with input "${input}":`;
         try {
           if (!input) {
-            return `Error: no action_input provided. Please provide the path to the file you want to get the contents of.`;
+            return `${errorPrefix}: no action_input provided. Please provide the path to the file you want to get the contents of.`;
           }
 
           input = input.trim();
@@ -77,15 +84,15 @@ export const useSandpackToolset = (
               const codeAtCleanedPath = getFileCode(cleanedInput);
 
               if (codeAtCleanedPath) {
-                return `Error: we couldn't find a file at the path you provided, but we did find one at the path ${cleanedInput}. Did you mean to use that path? If so, please try again.`;
+                return `${errorPrefix}: we couldn't find a file at the path you provided, but we did find one at the path ${cleanedInput}. Did you mean to use that path? If so, please try again.`;
               }
             }
 
-            return `Error: file not found at path ${input}, please use the list available files tool to see all available files`;
+            return `${errorPrefix}`;
           }
           return code;
         } catch (error) {
-          return `Failed to get file: ${error}`;
+          return `${errorPrefix} ${error}`;
         }
       },
     });
@@ -109,20 +116,22 @@ export const useSandpackToolset = (
   const createCreateNewFileTool = () => {
     return new DynamicTool({
       name: 'Create New File',
-      description: `call this to create a new file, useful for creating new UI or functions. input should be the path to the file and the code as a string format: {{"path": "path/to/file.js", "code": "console.log('')}}`,
+      description: `call this to create a new file, useful for creating new UI or functions. input should be the path to the file and the code as a string format: {{"path": "path/to/file.js", "code": "console.log('')"}}`,
       func: async (input) => {
         console.log('Create New File:', input);
+        let errorPrefix = `Error running Create New File with input "${input}":`;
         try {
           // eslint-disable-next-line prefer-const
           let {path, code} = JSON.parse(input);
+          errorPrefix = `Error running Create New File with path "${path}":`;
 
           if (!path.endsWith('.js') && !path.endsWith('.jsx'))
-            return `path must end with .js or .jsx, received ${path}`;
+            return `${errorPrefix} path must end with .js or .jsx, received ${path}`;
 
           if (!path.startsWith('/')) path = `/${path}`;
 
           if (getFileCode(path)) {
-            return `Error: file already exists at path <project-root>${path}, please use the update file tool instead.`;
+            return `${errorPrefix} file already exists at path <project-root>${path}, please use the update file tool instead.`;
           }
 
           optionsRef.current.onUpdateFiles({
@@ -135,7 +144,7 @@ export const useSandpackToolset = (
 
           return 'file created successfully!';
         } catch (error) {
-          return `Failed to create file: ${error}`;
+          return `${errorPrefix} ${error}`;
         }
       },
     });
@@ -148,23 +157,27 @@ export const useSandpackToolset = (
         'call this to set the contents of a file, useful for updating a file with new code. input should be the path to the file and the code as a string format: {{"path": "path/to/file.js", "code": "console.log()}}',
       func: async (input) => {
         console.log('Set File Contents:', input);
+        let errorPrefix = `Error running Set File Contents with input "${input}":`;
         try {
           // eslint-disable-next-line prefer-const
           let {path, code} = JSON.parse(input);
+          errorPrefix = `Error running Set File Contents with path "${path}":`;
           if (!path.endsWith('.js') && !path.endsWith('.jsx'))
-            return `Error: you may only update files that end with .js or .jsx, received ${path}`;
+            return `${errorPrefix} you may only update files that end with .js or .jsx, received ${path}`;
+
+          if (!path.startsWith('/')) path = `/${path}`;
 
           if (path && path.startsWith('/src')) {
             const cleanedInput = path.replace(/^\/src/, '');
             const codeAtCleanedPath = getFileCode(cleanedInput);
 
             if (codeAtCleanedPath) {
-              return `Error: we couldn't find a file at the path you provided, but we did find one at the path ${cleanedInput}. Did you mean to use that path? If so, please try again.`;
+              return `${errorPrefix} we couldn't find a file at the path you provided, but we did find one at the path ${cleanedInput}. Did you mean to use that path? If so, please try again.`;
             }
           }
 
           if (!getFileCode(path)) {
-            return `Error: file does not exist at path <project-root>${path}, please use the create file tool instead, or try correcting the path.`;
+            return `${errorPrefix} file does not exist at path <project-root>${path}, please use the create file tool instead, or try correcting the path.`;
           }
 
           optionsRef.current.onUpdateFiles({
@@ -176,7 +189,7 @@ export const useSandpackToolset = (
           });
           return 'file updated successfully!';
         } catch (error) {
-          return `Failed to update file: ${error}`;
+          return `${errorPrefix} ${error}`;
         }
       },
     });
@@ -188,12 +201,14 @@ export const useSandpackToolset = (
       description:
         'call this to get a list of all the dependencies in the project, useful to know which NPM modules you can import. input should be an empty string.',
       func: async () => {
+        const errorPrefix = `Error running List Which Dependencies Are Installed:`;
+
         try {
           return getInstalledDependencies()
             ? `Here is the list of installed dependencies:\n\n${getInstalledDependencies()}`
             : 'No dependencies installed';
         } catch (error) {
-          return `Failed to list dependencies: ${error}`;
+          return `${errorPrefix} ${error}`;
         }
       },
     });
@@ -205,8 +220,9 @@ export const useSandpackToolset = (
       description:
         'call this to install a new dependency. input should be the name of the dependency.',
       func: async (input) => {
+        const errorPrefix = `Error running Install Dependency with input "${input}":`;
         if (optionsRef.current.dependencies?.[input]) {
-          return `Error: ${input} is already installed, it does not need to be installed again.`;
+          return `${errorPrefix} ${input} is already installed, it does not need to be installed again.`;
         }
         optionsRef.current.onUpdateDependencies({
           ...optionsRef.current.dependencies,

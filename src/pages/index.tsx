@@ -7,7 +7,7 @@ import {
   SandpackProvider,
   useSandpack,
 } from '@codesandbox/sandpack-react';
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {
   Box,
   Center,
@@ -30,6 +30,8 @@ import {
 import {initialCodebaseState} from '@/lib/initial-codebase-state';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {BabyAGI} from '@/lib/babyagi';
+import {ChatOpenAI} from 'langchain/chat_models/openai';
 
 function Page(props: SandpackToolsetOptions) {
   const toast = useToast();
@@ -40,6 +42,21 @@ function Page(props: SandpackToolsetOptions) {
 
   const [isLoading, setIsLoading] = useState(false);
   const [instruction, setInstruction] = useState('');
+  const babyAgi = useRef(
+    BabyAGI.fromLLM(
+      new ChatOpenAI(
+        {temperature: 0, openAIApiKey: 'thisisnotthekey'},
+        {basePath: '/openai'},
+      ),
+      sandpackToolset.tools,
+    ),
+  );
+
+  useEffect(() => {
+    if (sandpack.error?.message) {
+      babyAgi.current.interruptExecutionWithTaskError(sandpack.error.message);
+    }
+  }, [sandpack.error?.message]);
 
   const handleSubmit = async (errorFix?: boolean) => {
     setIsLoading(true);
@@ -50,17 +67,13 @@ function Page(props: SandpackToolsetOptions) {
           throw new Error('No error to fix');
         }
 
-        await executeSandpackFixerAgent(sandpack.error, sandpackToolset, {
-          onNewToken: (token) => {
-            setThoughtProcess((prev) => `${prev}${token}`);
-          },
-        });
+        await executeSandpackFixerAgent(
+          babyAgi.current,
+          sandpack.error,
+          sandpackToolset,
+        );
       } else {
-        await executeSandpackAgent(instruction, sandpackToolset, {
-          onNewToken: (token) => {
-            setThoughtProcess((prev) => `${prev}${token}`);
-          },
-        });
+        await executeSandpackAgent(babyAgi.current, instruction);
       }
     } catch (error) {
       // eslint-disable-next-line no-console
