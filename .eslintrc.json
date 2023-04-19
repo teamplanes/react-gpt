@@ -4,6 +4,13 @@
     "planes"
   ],
   "rules": {
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "class-methods-use-this": "off",
+    "camelcase": "off",
+    "no-restricted-syntax": "off",
+    "no-underscore-dangle": "off",
+    "no-param-reassign": "off",
+    "no-continue": "off",
+    "no-await-in-loop": "off"
   }
 }

@@ -39,9 +39,6 @@ interface CommentaryMessage {
 
 function Page() {
   const {sandpack} = useSandpack();
-  const sp = useSandpackClient();
-  console.log('🚀 ~ file: index.tsx:43 ~ Page ~ sp:', sp);
-
   const toast = useToast();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);

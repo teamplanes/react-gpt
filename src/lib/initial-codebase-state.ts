@@ -1,29 +1,32 @@
 import {SandpackFile} from '@codesandbox/sandpack-react';
 
 const AppJs = /* js */ `import React from 'react';
+import {ChakraProvider} from '@chakra-ui/react';
 
 export default function App() {
   return (
-    // Code goes here!
-    null
+    <ChakraProvider>
+      {/* code goes here */}
+    </ChakraProvider>
   );
 }`;
 
-const IndexJs = /* js */ `import {ChakraProvider} from '@chakra-ui/react';
-  import React, { StrictMode } from "react";
-  import { createRoot } from "react-dom/client";
+const IndexJs = /* js */ `
+import React, { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import {ChakraProvider} from '@chakra-ui/react';
 
-  import App from "./App";
+import App from "./App";
 
-  const root = createRoot(document.getElementById("root"));
-  root.render(
+const root = createRoot(document.getElementById("root"));
+root.render(
+  <ChakraProvider>
     <StrictMode>
-      <ChakraProvider>
-        <App />
-      </ChakraProvider>
+      <App />
     </StrictMode>
-  );
-  `;
+  </ChakraProvider>
+);
+`;
 
 export const initialCodebaseState: {
   files: Record<string, SandpackFile>;

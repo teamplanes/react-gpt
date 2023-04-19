@@ -1,3 +1,4 @@
+/* eslint-disable react/require-default-props */
 /* eslint-disable no-await-in-loop */
 import Head from 'next/head';
 import {
@@ -7,74 +8,116 @@ import {
   SandpackProvider,
   useSandpack,
 } from '@codesandbox/sandpack-react';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Box,
+  Card,
   Center,
   Container,
   Flex,
   Spinner,
   Stack,
+  Tag,
   Text,
   useToast,
 } from '@chakra-ui/react';
 import {PromptForm} from '@/components/instruction-form';
-import {
-  useSandpackToolset,
-  SandpackToolsetOptions,
-} from '@/lib/sandpack-toolset';
-import {
-  executeSandpackAgent,
-  executeSandpackFixerAgent,
-} from '@/lib/sandpack-agent';
 import {initialCodebaseState} from '@/lib/initial-codebase-state';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import {BabyAGI} from '@/lib/babyagi';
-import {ChatOpenAI} from 'langchain/chat_models/openai';
+import {Codebase, Task} from '@/lib/agent/types';
+import {useAgent} from '@/lib/use-agent';
 
-function Page(props: SandpackToolsetOptions) {
+function TaskCard(props: {task: Task; isLoading: boolean; result?: string}) {
+  const bg = useMemo(() => {
+    if (props.isLoading) {
+      return 'gray.900';
+    }
+    if (props.result) {
+      return 'green.700';
+    }
+    return 'gray.600';
+  }, [props.isLoading, props.result]);
+
+  const result = useMemo(() => {
+    if (!props.result) {
+      return null;
+    }
+
+    if (
+      props.result.startsWith('ToolSuccess') ||
+      props.result.startsWith('ToolInfoRetrieval')
+    ) {
+      return 'Tool ran successfully';
+    }
+
+    return 'Tool failed, agent has been informed';
+  }, [props.result]);
+
+  return (
+    <Card
+      bg={bg}
+      p={4}
+      borderRadius="md"
+      color="white"
+      fontFamily="mono"
+      fontSize="sm"
+    >
+      <Stack>
+        <Tag bg="rgba(0,0,0,0.2)" color="white" fontSize="xs">
+          {props.task.tool_name}
+        </Tag>
+        <Text
+          as="div"
+          fontSize="md"
+          lineHeight={1.5}
+          color="white"
+          whiteSpace="pre-wrap"
+        >
+          {props.task.task_name}
+        </Text>
+        {props.isLoading && (
+          <Text as="div" fontSize="sm" color="white" whiteSpace="pre-wrap">
+            <Box as="span" color="yellow.400">
+              ⏳
+            </Box>{' '}
+            Running...
+          </Text>
+        )}
+        {result && (
+          <Text
+            as="div"
+            fontSize="sm"
+            color="rgb(255, 255, 255, 0.5)"
+            whiteSpace="pre-wrap"
+          >
+            {props.result?.startsWith('ToolError') && <>😔</>} {result}
+          </Text>
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
+function Page(props: Codebase) {
   const toast = useToast();
   const {sandpack} = useSandpack();
-  const [thoughtProcess, setThoughtProcess] = useState<string>('');
   const previewRef = useRef<SandpackPreviewRef>(null);
-  const sandpackToolset = useSandpackToolset(props);
-
+  const {agent, state} = useAgent(props);
   const [isLoading, setIsLoading] = useState(false);
   const [instruction, setInstruction] = useState('');
-  const babyAgi = useRef(
-    BabyAGI.fromLLM(
-      new ChatOpenAI(
-        {temperature: 0, openAIApiKey: 'thisisnotthekey'},
-        {basePath: '/openai'},
-      ),
-      sandpackToolset.tools,
-    ),
-  );
 
   useEffect(() => {
-    if (sandpack.error?.message) {
-      babyAgi.current.interruptExecutionWithTaskError(sandpack.error.message);
-    }
+    agent.setError(sandpack.error?.message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sandpack.error?.message]);
 
-  const handleSubmit = async (errorFix?: boolean) => {
+  const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      setThoughtProcess('');
-      if (errorFix) {
-        if (!sandpack.error) {
-          throw new Error('No error to fix');
-        }
-
-        await executeSandpackFixerAgent(
-          babyAgi.current,
-          sandpack.error,
-          sandpackToolset,
-        );
-      } else {
-        await executeSandpackAgent(babyAgi.current, instruction);
-      }
+      await agent.call({
+        objective: instruction,
+      });
+      setIsLoading(false);
+      setInstruction('');
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);
@@ -117,9 +160,6 @@ function Page(props: SandpackToolsetOptions) {
               onChange={(newInstruction) => setInstruction(newInstruction)}
               onSubmit={() => handleSubmit()}
               instruction={instruction}
-              // TODO
-              onFix={() => handleSubmit(true)}
-              errorMessage={sandpack.error?.message || ''}
             />
           </Flex>
           <Box
@@ -133,6 +173,7 @@ function Page(props: SandpackToolsetOptions) {
             overflowY="scroll"
           >
             <Text
+              as="div"
               fontSize="sm"
               color="white"
               whiteSpace="pre-wrap"
@@ -142,16 +183,51 @@ function Page(props: SandpackToolsetOptions) {
                 },
               }}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                // eslint-disable-next-line react/no-children-prop
-                children={
-                  thoughtProcess
-                    ?.replaceAll(`Action:`, '\n\n---\n**Action:**')
-                    ?.replaceAll(`Question:`, '\n\n---\n**Question:**')
-                    ?.replaceAll(`Thought:`, '\n\n---\n**Thought:**') || '...'
-                }
-              />
+              <Stack>
+                {state?.doneTasks.map((task, i) => (
+                  <TaskCard
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`${task.task.task_name}_doneTasks_${i}`}
+                    task={task.task}
+                    isLoading={false}
+                    result={task.result}
+                  />
+                ))}
+                {state?.currentTask && (
+                  <TaskCard
+                    key={`${state.currentTask.task_name}_currentTask`}
+                    task={state.currentTask}
+                    isLoading={state.isLoadingTaskList}
+                  />
+                )}
+                {state?.taskList.map((task, i) => (
+                  <TaskCard
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`${task.task_name}_taskList_${i}`}
+                    task={task}
+                    isLoading={false}
+                  />
+                ))}
+                {state?.isLoadingTaskList && (
+                  <Card
+                    bg="rgba(0,0,0,0.2)"
+                    p={4}
+                    borderRadius="md"
+                    color="white"
+                    fontFamily="mono"
+                    fontSize="sm"
+                  >
+                    <Stack
+                      alignItems="center"
+                      spacing={4}
+                      justifyContent="center"
+                    >
+                      <Spinner size="sm" />
+                      <Text>Busy creating task list...</Text>
+                    </Stack>
+                  </Card>
+                )}
+              </Stack>
               <Box
                 style={{
                   overflowAnchor: 'auto',
@@ -189,7 +265,12 @@ export default function Home() {
   const [dependencies, setDependencies] = useState(
     initialCodebaseState.dependencies,
   );
-  console.log({files, dependencies});
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    setIsReady(true);
+  }, []);
+
   return (
     <>
       <Head>
@@ -198,22 +279,26 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <SandpackProvider
-        template="react"
-        customSetup={{
-          dependencies,
-        }}
-        files={files}
-      >
-        <Page
+      {isReady && (
+        <SandpackProvider
+          template="react"
+          customSetup={{
+            dependencies,
+          }}
           files={files}
-          dependencies={dependencies}
-          onUpdateFiles={(newFiles) => setFiles(newFiles)}
-          onUpdateDependencies={(newDependencies) =>
-            setDependencies(newDependencies)
-          }
-        />
-      </SandpackProvider>
+        >
+          <Page
+            files={files}
+            dependencies={dependencies}
+            onUpdateFiles={(newFiles) => {
+              setFiles(newFiles);
+            }}
+            onUpdateDependencies={(newDependencies) =>
+              setDependencies(newDependencies)
+            }
+          />
+        </SandpackProvider>
+      )}
     </>
   );
 }
