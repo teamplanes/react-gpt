@@ -1,4 +1,4 @@
-# ReactGPT
+# ReactGPT ⚛️
 
 This project is an attempt at creating an autonomous React.js Developer. It uses
 the concepts many of the concepts in
@@ -13,8 +13,14 @@ hopefully it's a demonstration of some patterns that may be useful.
 
 ![A git of React GPT creating a Login UI](reactgpt.gif)
 
-
 ### Features
+
+- Agent runs in the browser
+- Defaults to using GPT-3.5-turbo
+- Uses [Sandpack](https://sandpack.codesandbox.io/) for the codebase/Renderer
+- Uses Chakra UI for the UI
+- Uses Langchain
+- Based on ["Task-Driven Autonomous Agent"](https://twitter.com/yoheinakajima/status/1640934493489070080?s=20) model
 
 ## Getting Started
 
