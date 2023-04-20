@@ -1,10 +1,9 @@
-import {MutableRefObject} from 'react';
 import dedent from 'dedent';
 import {CodeTool, codeToolResponse} from './code-tool';
-import {Codebase} from '../types';
+import {CodebaseRef} from '../types';
 
 export const createListInstalledDependenciesTool = (
-  sandpackToolsetOptions: MutableRefObject<Codebase>,
+  codebaseRef: CodebaseRef,
 ) => {
   return new CodeTool({
     name: 'list-installed-dependencies',
@@ -13,9 +12,7 @@ export const createListInstalledDependenciesTool = (
       useful to know which NPM modules you can import. Input should be an empty string.
     `,
     func: async () => {
-      const deps = Object.entries(
-        sandpackToolsetOptions.current.dependencies || {},
-      )
+      const deps = Object.entries(codebaseRef.current.dependencies || {})
         .map(([dependencyName]) => {
           return dependencyName;
         })

@@ -1,12 +1,9 @@
 /* eslint-disable no-param-reassign */
 import dedent from 'dedent';
-import {MutableRefObject} from 'react';
 import {CodeTool, codeToolResponse} from './code-tool';
-import {Codebase} from '../types';
+import {CodebaseRef} from '../types';
 
-export const createGetFileContentsByPathTool = (
-  sandpackToolsetOptions: MutableRefObject<Codebase>,
-) => {
+export const createGetFileContentsByPathTool = (codebaseRef: CodebaseRef) => {
   return new CodeTool<string>({
     name: 'get-file-contents-by-path',
     description: dedent`
@@ -35,12 +32,12 @@ export const createGetFileContentsByPathTool = (
       input = input.trim();
       input = !input.startsWith('/') ? `/${input}` : input;
 
-      const code = sandpackToolsetOptions.current.files[input]?.code;
+      const code = codebaseRef.current.files[input]?.code;
       if (!code) {
         if (input && input.startsWith('/src')) {
           const cleanedInput = input.replace(/^\/src/, '');
           const codeAtCleanedPath =
-            sandpackToolsetOptions.current.files[cleanedInput]?.code;
+            codebaseRef.current.files[cleanedInput]?.code;
 
           if (codeAtCleanedPath) {
             throw new Error(

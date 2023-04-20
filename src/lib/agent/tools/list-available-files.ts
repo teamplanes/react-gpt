@@ -1,11 +1,8 @@
-import {MutableRefObject} from 'react';
 import dedent from 'dedent';
 import {CodeTool, codeToolResponse} from './code-tool';
-import {Codebase} from '../types';
+import {CodebaseRef} from '../types';
 
-export const createListAvailableFilesTool = (
-  sandpackToolsetOptions: MutableRefObject<Codebase>,
-) =>
+export const createListAvailableFilesTool = (codebaseRef: CodebaseRef) =>
   new CodeTool({
     name: 'list-available-files',
     description: dedent`
@@ -13,7 +10,7 @@ export const createListAvailableFilesTool = (
       understand the file structure. Input should be an empty string.
     `,
     func: async () => {
-      const allFiles = Object.entries(sandpackToolsetOptions.current.files).map(
+      const allFiles = Object.entries(codebaseRef.current.files).map(
         ([filePath]) => filePath,
       );
       const hasSrcFolder = allFiles.some((filePath) =>

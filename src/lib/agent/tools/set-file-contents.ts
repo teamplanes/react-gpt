@@ -1,11 +1,8 @@
 import dedent from 'dedent';
-import {MutableRefObject} from 'react';
 import {CodeTool, codeToolResponse} from './code-tool';
-import {Codebase} from '../types';
+import {CodebaseRef} from '../types';
 
-export const createSetFileContentsTool = (
-  sandpackToolsetOptions: MutableRefObject<Codebase>,
-) => {
+export const createSetFileContentsTool = (codebaseRef: CodebaseRef) => {
   return new CodeTool({
     name: 'set-file-contents',
     description: dedent`
@@ -41,8 +38,7 @@ export const createSetFileContentsTool = (
 
       if (path && path.startsWith('/src')) {
         const cleanedInput = path.replace(/^\/src/, '');
-        const codeAtCleanedPath =
-          sandpackToolsetOptions.current.files[cleanedInput]?.code;
+        const codeAtCleanedPath = codebaseRef.current.files[cleanedInput]?.code;
 
         if (codeAtCleanedPath) {
           throw new Error(
@@ -53,7 +49,7 @@ export const createSetFileContentsTool = (
         }
       }
 
-      if (!sandpackToolsetOptions.current.files[path]?.code) {
+      if (!codebaseRef.current.files[path]?.code) {
         throw new Error(
           dedent`
               File does not exist at path ${path}, please use the create
@@ -62,10 +58,10 @@ export const createSetFileContentsTool = (
         );
       }
 
-      sandpackToolsetOptions.current.onUpdateFiles({
-        ...sandpackToolsetOptions.current.files,
+      codebaseRef.current.onUpdateFiles({
+        ...codebaseRef.current.files,
         [path]: {
-          ...(sandpackToolsetOptions.current.files[path] || {}),
+          ...(codebaseRef.current.files[path] || {}),
           code,
         },
       });
