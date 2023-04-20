@@ -9,7 +9,6 @@ const taskListCreationTemplate = dedent`
   You are creating the initial task list for a development execution agent.
   Break down the objective into a list of tasks that can be completed by the execution agent.
   When planning your task list, be sure to get the contents of a file before setting its contents.
-  Take stock of the files you have available, at each stage of the process.
   Create as many tasks as you need to complete the objective.
 
   Your guidelines for completing the objective are:
