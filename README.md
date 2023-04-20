@@ -1,10 +1,9 @@
 # ReactGPT ⚛️
 
 This project is an attempt at creating an autonomous React.js Developer. It uses
-the concepts many of the concepts in
-[BabyAGI](https://github.com/yoheinakajima/babyagi), but extrapolates them
-slightly. Most notably by equipping the agent with tools to execute, and
-tailoring the prompts to the objective.
+many of the concepts in [BabyAGI](https://github.com/yoheinakajima/babyagi), but
+extrapolates them slightly. Most notably by equipping the agent with tools to
+execute, and tailoring the prompts to the objective.
 
 **This project is just an experiment** and not reliable what-so-ever. That said,
 hopefully it's a demonstration of some patterns that may be useful.
