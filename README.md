@@ -13,7 +13,7 @@ hopefully it's a demonstration of some patterns that may be useful.
 ### Features
 
 - Agent runs in the browser
-- Defaults to using GPT-3.5-turbo
+- Defaults to using GPT-4, tested on GPT-3.5-turbo
 - Uses [Sandpack](https://sandpack.codesandbox.io/) for the codebase/Renderer
 - Uses Chakra UI for the UI
 - Uses Langchain
