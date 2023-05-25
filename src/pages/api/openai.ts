@@ -13,6 +13,7 @@ const pickHeaders = (headers: Headers, keys: (string | RegExp)[]): Headers => {
 };
 
 const CORS_HEADERS: Record<string, string> = {
+  'access-Control-Allow-Headers': '*',
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'access-control-allow-headers': 'Content-Type',

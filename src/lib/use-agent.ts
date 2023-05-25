@@ -36,7 +36,7 @@ export const useAgent = (
     new AgentCode({
       listener: setAgentState,
       llm: new ChatOpenAI(
-        {temperature: 0, openAIApiKey: 'thisisnotthekey'},
+        {temperature: 0, modelName: 'gpt-4', openAIApiKey: 'thisisnotthekey'},
         {basePath: '/openai'},
       ),
       codebaseRef,
