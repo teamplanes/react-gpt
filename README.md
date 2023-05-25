@@ -8,8 +8,6 @@ execute, and tailoring the prompts to the objective.
 **This project is just an experiment** and not reliable what-so-ever. That said,
 hopefully it's a demonstration of some patterns that may be useful.
 
-🤞... maybe a GPT-4 API key will improve the results.
-
 ![A git of React GPT creating a Login UI](reactgpt.gif)
 
 ### Features
