@@ -61,5 +61,3 @@ Check out the `/src/lib/agent/tools` directory for more details.
 ---
 
 Made at [Planes Studio](https://planes.studio) 🛫
-
-[![Planes Studio](https://avatars.githubusercontent.com/u/7756284?s=200&v=4)](https://planes.studio)
